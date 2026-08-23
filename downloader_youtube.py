@@ -491,9 +491,9 @@ def push_progress_file(api, local_path, repo_id, progress):
 
 
 def push_audio_files(api, base_dir, repo_id, repo_audio_subdir):
-    """Upload each mp3 currently on disk as a raw file (no shard/tar), then
-    remove it locally. Returns the list of video_ids that were uploaded
-    successfully."""
+    """Upload every mp3 currently on disk in a single `upload_folder` commit
+    (instead of one `upload_file` call per file), then remove them locally.
+    Returns the list of video_ids that were uploaded successfully."""
     try:
         create_repo(repo_id, repo_type='dataset', exist_ok=True, token=os.environ.get('HF_TOKEN'))
     except Exception as exc:
@@ -506,29 +506,37 @@ def push_audio_files(api, base_dir, repo_id, repo_audio_subdir):
     if not mp3_files:
         return []
 
+    try:
+        api.upload_folder(
+            folder_path=base_dir,
+            path_in_repo=repo_audio_subdir or '',
+            repo_id=repo_id,
+            repo_type='dataset',
+            token=os.environ.get('HF_TOKEN'),
+            allow_patterns=['*.mp3'],
+            commit_message=f'Add {len(mp3_files)} mp3 file(s)',
+        )
+    except Exception as exc:
+        logging.warning(
+            f'Could not upload {len(mp3_files)} mp3 file(s) to {repo_id} — they will be '
+            f'retried next checkpoint since none were marked complete: {exc}'
+        )
+        return []
+
     uploaded_video_ids = []
     for fname in mp3_files:
         local_path = os.path.join(base_dir, fname)
         video_id = os.path.splitext(fname)[0]
-        path_in_repo = f'{repo_audio_subdir}/{fname}' if repo_audio_subdir else fname
         try:
-            api.upload_file(
-                path_or_fileobj=local_path,
-                path_in_repo=path_in_repo,
-                repo_id=repo_id,
-                repo_type='dataset',
-                token=os.environ.get('HF_TOKEN'),
-                commit_message=f'Add {fname}',
-            )
             os.remove(local_path)
-            uploaded_video_ids.append(video_id)
-            logging.info(f'Uploaded {fname} to {repo_id}:{path_in_repo}')
-        except Exception as exc:
-            logging.warning(
-                f'Could not upload {fname} to {repo_id} — it will be retried '
-                f'next checkpoint since it was not marked complete: {exc}'
-            )
+        except OSError as exc:
+            logging.warning(f'Uploaded {fname} but could not remove it locally: {exc}')
+        uploaded_video_ids.append(video_id)
 
+    logging.info(
+        f'Uploaded {len(uploaded_video_ids)} mp3 file(s) to '
+        f'{repo_id}:{repo_audio_subdir or "/"}'
+    )
     return uploaded_video_ids
 
 
