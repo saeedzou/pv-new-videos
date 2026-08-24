@@ -50,9 +50,14 @@ def diarize_file(
     num_speakers=None,
 ) -> list[dict]:
 
-    import torchaudio
+    import librosa
+    import torch
 
-    waveform, sample_rate = torchaudio.load(str(audio_path))
+    waveform, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
+    if waveform.ndim == 1:
+        waveform = waveform[None, :]
+
+    waveform = torch.from_numpy(waveform).float()
 
     audio = {
         "waveform": waveform,
