@@ -75,16 +75,21 @@ def save_json(path: Path, data: dict) -> None:
 def load_audio_mono(path: str, sr: int = 16000) -> Tuple[np.ndarray, int]:
     """Load an audio file (mp3/wav/...) as a mono float32 numpy array at `sr` Hz.
 
-    Uses pydub (backed by ffmpeg) so mp3 decoding works without relying on
-    libsndfile's optional mp3 support.
+    Uses torchaudio (backed by ffmpeg/sox depending on backend) for decoding,
+    then downmixes to mono and resamples to `sr` if needed.
     """
-    from pydub import AudioSegment
+    import torchaudio
 
-    audio = AudioSegment.from_file(path)
-    audio = audio.set_channels(1).set_frame_rate(sr)
-    samples = np.array(audio.get_array_of_samples())
-    max_val = float(1 << (8 * audio.sample_width - 1))
-    samples = samples.astype(np.float32) / max_val
+    waveform, orig_sr = torchaudio.load(path)  # (channels, samples), float32 in [-1, 1]
+
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)  # downmix to mono
+
+    if orig_sr != sr:
+        resampler = torchaudio.transforms.Resample(orig_freq=orig_sr, new_freq=sr)
+        waveform = resampler(waveform)
+
+    samples = waveform.squeeze(0).numpy().astype(np.float32)
     return samples, sr
 
 
@@ -104,7 +109,7 @@ def crop_samples(
 
 
 def audio_duration_seconds(path: str) -> float:
-    from pydub import AudioSegment
+    import torchaudio
 
-    audio = AudioSegment.from_file(path)
-    return len(audio) / 1000.0
+    info = torchaudio.info(path)
+    return info.num_frames / float(info.sample_rate)
