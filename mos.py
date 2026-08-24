@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 def score_segment(nr, samples, sr, start: float, end: float, max_duration: float) -> float | None:
     audio = crop_samples(samples, sr, start, end, max_duration=max_duration)
-    if audio.size == 0:
+    min_samples = int(sr * 0.5)
+    
+    if audio.size < min_samples:
         return None
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         tmp_path = tmp.name
@@ -53,7 +55,7 @@ def main():
                               "--filtered_dir in place.")
     parser.add_argument("--data_domain", type=str, choices=["natural", "synthetic"],
                          default="natural", help="Which SCOREQ predictor version to use.")
-    parser.add_argument("--max_duration", type=float, default=30.0,
+    parser.add_argument("--max_duration", type=float, default=15.0,
                          help="Max seconds of each segment fed to the MOS predictor.")
     parser.add_argument("--overwrite", action="store_true",
                              help="Recompute and overwrite existing MOS JSON files.")
