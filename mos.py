@@ -55,6 +55,8 @@ def main():
                          default="natural", help="Which SCOREQ predictor version to use.")
     parser.add_argument("--max_duration", type=float, default=30.0,
                          help="Max seconds of each segment fed to the MOS predictor.")
+    parser.add_argument("--overwrite", action="store_true",
+                             help="Recompute and overwrite existing MOS JSON files.")
     args = parser.parse_args()
 
     import scoreq
@@ -76,6 +78,9 @@ def main():
                 logger.warning(f"Audio file not found: {audio_path}. Skipping {json_path}.")
                 continue
 
+            out_path = relative_out_path(json_path, in_root, out_root)
+            if out_path.exists() and not args.overwrite:
+                continue
             samples, sr = load_audio_mono(audio_path)
 
             for seg in data.get("segments", []):
@@ -89,7 +94,6 @@ def main():
                     logger.error(f"Error scoring segment {seg.get('index')} in {json_path}: {e}")
                     seg["mos_error"] = str(e)
 
-            out_path = relative_out_path(json_path, in_root, out_root)
             save_json(out_path, data)
         except Exception as e:
             logger.error(f"Failed to process {json_path}: {e}")
