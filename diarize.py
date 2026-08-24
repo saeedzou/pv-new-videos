@@ -24,8 +24,9 @@ import os
 from pathlib import Path
 
 from tqdm import tqdm
+import torch
 
-from utils import audio_duration_seconds, find_audio_files, relative_json_path, save_json
+from utils import audio_duration_seconds, find_audio_files, relative_json_path, save_json, load_audio_mono
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -50,14 +51,8 @@ def diarize_file(
     num_speakers=None,
 ) -> list[dict]:
 
-    import librosa
-    import torch
-
-    waveform, sample_rate = librosa.load(str(audio_path), sr=None, mono=True)
-    if waveform.ndim == 1:
-        waveform = waveform[None, :]
-
-    waveform = torch.from_numpy(waveform).float()
+    waveform, sample_rate = load_audio_mono(str(audio_path))
+    waveform = torch.from_numpy(waveform).unsqueeze(0)
 
     audio = {
         "waveform": waveform,

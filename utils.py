@@ -71,26 +71,26 @@ def save_json(path: Path, data: dict) -> None:
 # --------------------------------------------------------------------------
 # Audio loading
 # --------------------------------------------------------------------------
-
 def load_audio_mono(path: str, sr: int = 16000) -> Tuple[np.ndarray, int]:
-    """Load an audio file (mp3/wav/...) as a mono float32 numpy array at `sr` Hz.
+    """Load an audio file as mono float32 NumPy audio at `sr` Hz."""
+    import librosa
 
-    Uses torchaudio (backed by ffmpeg/sox depending on backend) for decoding,
-    then downmixes to mono and resamples to `sr` if needed.
-    """
-    import torchaudio
-
-    waveform, orig_sr = torchaudio.load(path)  # (channels, samples), float32 in [-1, 1]
-
-    if waveform.shape[0] > 1:
-        waveform = waveform.mean(dim=0, keepdim=True)  # downmix to mono
+    waveform, orig_sr = librosa.load(
+        path,
+        sr=None,
+        mono=True,
+    )
 
     if orig_sr != sr:
-        resampler = torchaudio.transforms.Resample(orig_freq=orig_sr, new_freq=sr)
-        waveform = resampler(waveform)
+        waveform = librosa.resample(
+            y=waveform,
+            orig_sr=orig_sr,
+            target_sr=sr,
+        )
 
-    samples = waveform.squeeze(0).numpy().astype(np.float32)
-    return samples, sr
+    waveform = np.asarray(waveform, dtype=np.float32)
+
+    return waveform, sr
 
 
 def crop_samples(
@@ -109,7 +109,7 @@ def crop_samples(
 
 
 def audio_duration_seconds(path: str) -> float:
-    import torchaudio
+    import librosa
 
-    info = torchaudio.info(path)
-    return info.num_frames / float(info.sample_rate)
+    duration = librosa.get_duration(path=path)
+    return duration
